@@ -3,155 +3,144 @@
 /* Magic Mirror 2
  * Module: MMM-Videoplayer
  *
- * By Erik Pettersson
- * Assisted by Timo Pettersson
- * Based on the MMM-videoPlay Module by Sungje KIM
- *
+ * Forked and modified for HTTP-served video folder
  * MIT Licensed.
  */
 Module.register("MMM-Videoplayer", {
-	defaults: {
-		defaultvideo: "/modules/MMM-Videoplayer/video/mov_bbb.mp4",
-		//video: "/modules/MMM-Videoplayer/video/mov_bbb.mp4", // This can also be a link to a mp4 file on the internet.
-		//videolist: ["/modules/MMM-Videoplayer/video/test01.mp4", "/modules/MMM-Videoplayer/video/test02.mp4", "/modules/MMM-Videoplayer/video/test03.mp4"], // Can also be links to a mp4 files on the internet.
-		random: false, // Play the videos randomly. 
-		loop: true, // Repeat the video list.
-		hideonstart: false, // If set to true, the player will hide it self when a clip is loaded (and just started playing). Then when the player is shown again it will continue play the clip and hide itself again when the next clip is loaded (and just starts playing) and so on.
-		fadeSpeed: 1000, // The speed to hide the module (milliseconds).
-		showcontrols: false, // Set to true if you want the video controls to show.
-		preload: "auto", // Can be set to: "auto", "metadata", "none".
-		autoplay: true, // If set to true, sound (muted below) has to be true, otherwise the video will not auto play.
-		muted: true, // Mute the sound. If auto play is true, this needs to be true as well, otherwise the video will not auto play.
-		pauseonhide: true, // If true the module will pause the video when hidden.
-		resumeonshow: true,  // If true the module will resume the video when shown.
-		notification: "VIDEOPLAYER1", // Unique notification string for this player.
-	},
+    defaults: {
+        videoFolderHTTP: "http://100.71.6.122:8081",
+        random: false,
+        loop: true,
+        hideonstart: false,
+        fadeSpeed: 1000,
+        showcontrols: false,
+        preload: "auto",
+        autoplay: true,
+        muted: true,
+        pauseonhide: true,
+        resumeonshow: true,
+        notification: "VIDEOPLAYER1"
+    },
 
-	// Loading the CSS
-	getStyles: function () {
-		return ["MMM-Videoplayer.css"];
-	},
+    start: function () {
+        this.videoArray = [];
+        this.playedVideoArray = [];
+        this.currentVideoIndex = 0;
+        this.video = null;
+    },
 
-	// Pause, play, replay and next video control via notifications using "TOGGLE", "REPLAY" or "NEXT".
-	notificationReceived: function (notification, payload, sender) {
-		if (notification === this.config.notification) {
-			if (payload === 'TOGGLE') {
-				if (this.video.paused) {
-					this.video.play();
-				} else {
-					this.video.pause();
-				}
-			} else if (payload === 'NEXT') {
-				this.nextVideo();
-			} else if (payload === 'REPLAY') {
-				this.replayVideo();
-			}
-		}
-	},
+    getStyles: function () {
+        return ["MMM-Videoplayer.css"];
+    },
 
-	// What happens when the module is hidden.
-	suspend: function () {
-		if (this.config.pauseonhide) {
-			this.video.pause();
-		}
-	},
+    // Fetch videos from HTTP folder
+    fetchVideoList: function () {
+        fetch(this.config.videoFolderHTTP)
+    		.then(res => res.json())
+    		.then(list => {
+    		    this.videoArray = list.videos.map(f => this.config.videoFolderHTTP + "/" + f);
+    		    this.playedVideoArray = [];
+    		    if (!this.video.src) this.nextVideo();
+    		})
+    		.catch(err => {
+    		    console.error("MMM-Videoplayer: Could not load videos from HTTP folder", err);
+    		});
+    },
 
-	// What happens when the module is shown.
-	resume: function () {
-		if (this.config.resumeonshow) {
-			this.video.play();
-		}
-	},
+    replayVideo: function () {
+        if (this.video && this.playedVideoArray.length > 0) {
+            const lastVideo = this.playedVideoArray[this.playedVideoArray.length - 1];
+            this.video.setAttribute("src", lastVideo);
+            this.video.load();
+            this.video.play();
+        }
+    },
 
-	// Restart current playing video from start.
-	replayVideo: function () {
-		var lastIndex = this.playedVideoArray.length - 1;
-		if (lastIndex > -1) {
-			this.video.setAttribute("src", this.playedVideoArray[lastIndex]);
-			this.video.load();
-			this.video.play();
-		}
-	},
+    nextVideo: function () {
+        if (this.videoArray.length === 0) {
+            this.fetchVideoList();
+            return;
+        }
 
-	// Plays the next video in queue.
-	nextVideo: function () {
+        if (this.config.hideonstart) this.hide(this.config.fadeSpeed);
 
-		// If set to true, the player will hide it self when a clip is loaded (and just started playing).
-		if (this.config.hideonstart) {
-			this.hide(this.config.fadeSpeed)
-		}
+        if (this.config.random) {
+            this.currentVideoIndex = Math.floor(Math.random() * this.videoArray.length);
+        } else {
+            this.currentVideoIndex = 0;
+        }
 
-		// Resets the video queue if set to loop.
-		if (this.videoArray.length == 0) {
-			if (!this.config.loop) {
-				return;
-			}
-			this.videoArray = this.playedVideoArray;
-			this.playedVideoArray = [];
-		}
+        const nextVid = this.videoArray.splice(this.currentVideoIndex, 1)[0];
+        this.playedVideoArray.push(nextVid);
 
-		// Random video.
-		if (this.config.random) {
-			this.currentVideoIndex = Math.floor(Math.random() * this.videoArray.length);
-		}
+        if (this.video) {
+            this.video.setAttribute("src", nextVid);
+            this.video.load();
+            this.video.play();
+        }
+    },
 
-		// Sets the video to play.
-		this.video.setAttribute("src", this.videoArray[this.currentVideoIndex]);
-		// Add the played video to the played queue.
-		this.playedVideoArray.push(this.videoArray.splice(this.currentVideoIndex, 1))
-		this.video.load();
-		this.video.play();
-	},
+    suspend: function () {
+        if (this.config.pauseonhide && this.video) {
+            this.video.pause();
+        }
+    },
 
-	// Send the module. :)
-	getDom: function () {
-		// Setup the video array.
-		this.videoArray = [];
-		this.playedVideoArray = [];
+    resume: function () {
+        if (this.config.resumeonshow && this.video) {
+            this.video.play().catch(err => {
+                console.warn("MMM-Videoplayer: resume play failed", err);
+            });
+        }
+    },
 
-		// Checks if anything is defined in the config (video or videolist).
-		if (!this.config.video && !this.config.videolist) {
-			// If not, adds the default clip.
-			this.videoArray = [this.config.defaultvideo];
-		} else {
-			// If videolist is defined, adds them to the array.
-			if (this.config.videolist) {
-				this.videoArray = this.config.videolist
-			}
-			// If video is defined add that first in the array. 
-			if (this.config.video) {
-				this.videoArray.unshift(this.config.video)
-			}
-		}
+    notificationReceived: function (notification, payload, sender) {
+        if (notification === this.config.notification) {
+            switch (payload) {
+                case 'TOGGLE':
+                    if (this.video.paused) this.video.play();
+                    else this.video.pause();
+                    break;
+                case 'NEXT':
+                    this.nextVideo();
+                    break;
+                case 'REPLAY':
+                    this.replayVideo();
+                    break;
+                case 'REFRESH':
+                    this.fetchVideoList();
+                    break;
+            }
+        }
+    },
 
-		// Build the player.
-		var wrapper = document.createElement("div");
+    getDom: function () {
+    	// Create wrapper div
+    	var wrapper = document.createElement("div");
+		
+    	// Create video element
+    	this.video = document.createElement("video");
+    	this.video.id = this.identifier + "_video";
+		
+    	// Configure video attributes
+    	this.video.muted = this.config.muted;
+    	this.video.autoplay = this.config.autoplay;
+    	this.video.loop = false; // Loop handled manually by module
+    	this.video.controls = this.config.showcontrols;
+    	this.video.preload = this.config.preload;
+		
+    	// Play next video when current ends
+    	this.video.addEventListener('ended', () => {
+    	    this.nextVideo();
+    	}, false);
+	
+    	// Append video to wrapper
+    	wrapper.appendChild(this.video);
+	
+    	// Fetch video list and start playback
+    	this.fetchVideoList();
+	
+    	return wrapper;
+	}
 
-		// Adds the video
-		this.video = document.createElement("video");
-
-		// Make sure we set the video list to 0
-		this.currentVideoIndex = 0;
-
-		// Adds the ended event so we know.
-		this.video.addEventListener('ended', this.nextVideo.bind(this), false);
-
-		// Adds the rest of the payer video tag settings.
-		this.video.muted = this.config.muted;
-		this.video.autoplay = this.config.autoplay;
-		this.video.loop = false;
-		this.video.controls = this.config.showcontrols;
-		this.video.preload = this.config.preload;
-		this.video.id = this.identifier + "_video";
-
-		// Loads the first video.
-		this.nextVideo();
-
-		// Wrap it up.
-		wrapper.appendChild(this.video);
-
-		//Sends it back to the dom.
-		return wrapper;
-	},
-}
-);
+});
