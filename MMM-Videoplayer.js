@@ -8,7 +8,7 @@
  */
 Module.register("MMM-Videoplayer", {
     defaults: {
-        videoFolderHTTP: "http://100.71.6.122:8081",
+        videoFolderHTTP: "http://localhost:8081",
         random: false,
         loop: true,
         hideonstart: false,
