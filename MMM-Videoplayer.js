@@ -41,7 +41,9 @@ Module.register("MMM-Videoplayer", {
 
     socketNotificationReceived: function (notification, payload) {
         if (notification === "VIDEO_FILES") {
-            this.videoArray = payload.map(f => this.config.videoFolder + "/" + f);
+            // Construct the video URLs using the fixed URL path from the helper
+            // The helper will serve files from this.config.videoFolder at /MMM-Videoplayer/videos
+            this.videoArray = payload.map(f => `/${this.name}/videos/${f}`);
             this.playedVideoArray = [];
             if (!this.video.src) this.nextVideo();
         }
