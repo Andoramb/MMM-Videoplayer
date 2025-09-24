@@ -8,7 +8,7 @@
  */
 Module.register("MMM-Videoplayer", {
     defaults: {
-        videoFolderHTTP: "http://localhost:8081",
+        videoFolder: "/videos",
         random: false,
         loop: true,
         hideonstart: false,
@@ -33,18 +33,17 @@ Module.register("MMM-Videoplayer", {
         return ["MMM-Videoplayer.css"];
     },
 
-    // Fetch videos from HTTP folder
+    // Fetch videos from folder
     fetchVideoList: function () {
-        fetch(this.config.videoFolderHTTP)
-    		.then(res => res.json())
-    		.then(list => {
-    		    this.videoArray = list.videos.map(f => this.config.videoFolderHTTP + "/" + f);
-    		    this.playedVideoArray = [];
-    		    if (!this.video.src) this.nextVideo();
-    		})
-    		.catch(err => {
-    		    console.error("MMM-Videoplayer: Could not load videos from HTTP folder", err);
-    		});
+        this.sendSocketNotification("GET_VIDEO_FILES", this.config.videoFolder);
+    },
+
+    socketNotificationReceived: function (notification, payload) {
+        if (notification === "VIDEO_FILES") {
+            this.videoArray = payload.map(f => this.config.videoFolder + "/" + f);
+            this.playedVideoArray = [];
+            if (!this.video.src) this.nextVideo();
+        }
     },
 
     replayVideo: function () {
