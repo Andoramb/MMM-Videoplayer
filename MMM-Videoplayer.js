@@ -27,6 +27,7 @@ Module.register("MMM-Videoplayer", {
         this.playedVideoArray = [];
         this.currentVideoIndex = 0;
         this.video = null;
+        this.sendSocketNotification("CONFIG", this.config);
     },
 
     getStyles: function () {

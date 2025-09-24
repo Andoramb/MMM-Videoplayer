@@ -5,11 +5,21 @@ const path = require("path");
 module.exports = NodeHelper.create({
     start: function () {
         console.log("MMM-Videoplayer helper started...");
+        this.config = null; // Initialize config
     },
 
     socketNotificationReceived: function (notification, payload) {
-        if (notification === "GET_VIDEO_FILES") {
-            const videoFolder = payload;
+        if (notification === "CONFIG") {
+            this.config = payload;
+            // Set up static route for video folder
+            // The videoFolder path needs to be absolute for express.static
+            // MagicMirror's app.use expects a URL path and a directory path
+            // We'll use the videoFolder from the config as both the URL path and the directory path
+            // This assumes videoFolder is an absolute path like /downloads
+            this.expressApp.use(this.config.videoFolder, this.express.static(this.config.videoFolder));
+            console.log(`MMM-Videoplayer: Serving videos from ${this.config.videoFolder} at URL ${this.config.videoFolder}`);
+        } else if (notification === "GET_VIDEO_FILES") {
+            const videoFolder = this.config.videoFolder; // Use stored config
             fs.readdir(videoFolder, (err, files) => {
                 if (err) {
                     console.error("MMM-Videoplayer: Could not read video folder", err);
